@@ -1,4 +1,13 @@
 # Changelog
+## v0.0.8
+- Replace deprecated FormApplication usage with ApplicationV2 when available (Foundry v13+),
+  falling back to FormApplication for older versions. This removes deprecation warnings on v13
+  and preserves backward compatibility.
+- MapDialog now renders via Handlebars ApplicationV2 (v13) and initializes Google Maps after render; 
+  no functional changes expected.
+- UI: Tightened the header form so controls fit on at most two rows. Search and Scene Name fields
+  now flex to share the first row while action buttons flow to a compact second row.
+
 ## v0.0.7
 - Updated to support FoundryVTT v10's module manifest
 - Add new feature for generating expanded scenes (Huge thanks thomasjeffreyandersontwin!)

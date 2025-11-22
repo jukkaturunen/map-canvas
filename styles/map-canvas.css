@@ -1,0 +1,177 @@
+/*
+  Map Canvas — v13 visual refresh
+  Aim: embrace Foundry VTT v13 aesthetics with softer corners,
+  translucency, and subtle focus/hover states while staying theme‑agnostic.
+  Only styles within this module are affected by using id- and module‑scoped
+  selectors.
+*/
+
+/* Loading overlay */
+#loadingIndicator {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(2px) saturate(120%);
+    border-radius: 12px;
+}
+
+#loadingIndicator.is-visible {
+    display: flex;
+}
+
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border-left-color: var(--color-primary, #7aa2ff);
+    animation: spin 1s ease infinite;
+    filter: drop-shadow(0 0 4px rgba(0,0,0,0.25));
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Map view container */
+#mapPortal {
+    position: relative;
+    padding-bottom: 75%;
+    border-radius: 12px;
+    overflow: hidden; /* ensures rounded corners clip map tiles */
+}
+
+#mapCanvasContainer {
+    position: relative;
+    display: flex;
+    gap: 10px;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+}
+
+/* (removed duplicate early rule for #mapCanvasZoomLevel; consolidated below) */
+
+/* Controls bar – translucent rounded panel */
+#inputHolder {
+    /* Grid layout enforces a strict two-row header: inputs on row 1, buttons on row 2 */
+    display: flex !important; /* ensure no external flex styles override this container */
+    flex-direction: column;
+    column-gap: 6px;
+    row-gap: 4px;
+    align-items: center;
+    padding: 8px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(6px) saturate(120%);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+/* Fields & buttons */
+#inputHolder input[type="button"] {
+    height: 30px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text-light-0, inherit);
+    padding: 0 10px;
+    transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 60ms ease;
+}
+
+/* Tighten header: keep controls to two lines max
+   - Make the two text fields flexible so they share the first row with the zoom field.
+   - Keep buttons at natural width so they flow to the second row. */
+#inputHolder input[type="text"] {
+    width: auto !important;           /* override any global form width rules */
+    flex: 1 1 240px;                  /* allow sharing a single row */
+
+}
+
+#mapCanvasSearchBox,
+#mapCanvasSceneName {
+    flex: 1 1 260px;                  /* prefer wider fields when space allows */
+}
+
+/* Keep the zoom field compact and non-growing */
+#mapCanvasZoomLevel {
+    max-width: 36px;
+    width: 36px;
+    flex-shrink: 1;
+    text-align: center;
+}
+
+/* Place inputs explicitly on the first row */
+#mapCanvasSearchBox { grid-column: 2; grid-row: 1; grid-area: search; }
+#mapCanvasSceneName { grid-column: 3; grid-row: 1; grid-area: scene; }
+
+/* Actions container spans the full width on the second row */
+#mapCanvasActions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap; /* allow wrapping if the window is very narrow */
+}
+#mapCanvasInputs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap; /* allow wrapping if the window is very narrow */
+}
+
+/* Keep buttons from wrapping their labels and apply the same styling */
+#mapCanvasActions input[type="button"] { white-space: nowrap; }
+
+/* On very narrow layouts, allow columns to shrink but still keep two rows */
+@media (max-width: 560px) {
+    #inputHolder {
+        grid-template-columns: 30px 1fr 1fr;
+        grid-template-areas:
+            "zoom search scene"
+            "actions actions actions";
+    }
+}
+
+/* Text fields specifically */
+#inputHolder input[type="text"]::placeholder {
+    color: rgba(255,255,255,0.55);
+}
+
+#inputHolder input[type="text"]:focus {
+    outline: none;
+    border-color: var(--color-primary, #7aa2ff);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary, #7aa2ff) 45%, transparent);
+    background: rgba(255, 255, 255, 0.09);
+}
+
+/* Button look */
+#inputHolder input[type="button"] {
+    cursor: pointer;
+    background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
+    border: 1px solid rgba(255,255,255,0.18);
+}
+
+#inputHolder input[type="button"]:hover {
+    background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08));
+}
+
+#inputHolder input[type="button"]:active {
+    transform: translateY(1px);
+}
+
+/* Map container wrapper adopts rounded aesthetic too */
+.mapCanvasOptionsMapContainer {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    background: rgba(0, 0, 0, 0.12);
+}

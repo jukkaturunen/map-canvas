@@ -1,23 +1,80 @@
 import {MAP_STYLES} from "./map-canvas-styles.js";
 import {ImageDataConverter} from "./image-data-converter.js";
 
-class MapDialog extends FormApplication {
+const MAP_CANVAS_STATE = {
+    dialogActive: false,
+    apiLoaded: false,
+    mapInitialized: false,
+    dialog: null
+};
+
+if (typeof window !== "undefined") {
+    window.mapcanvas = MAP_CANVAS_STATE;
+}
+
+// Prefer ApplicationV2 when available (Foundry v13+), fall back to FormApplication for older versions
+const __MC_AppV2 = (globalThis.foundry?.applications?.api?.ApplicationV2) ?? null;
+const __MC_Handlebars = (globalThis.foundry?.applications?.api?.HandlebarsApplicationMixin) ?? null;
+const __MC_USE_V2 = !!(__MC_AppV2 && __MC_Handlebars);
+const __MC_BaseApp = __MC_USE_V2 ? __MC_Handlebars(__MC_AppV2) : FormApplication;
+
+class MapDialog extends __MC_BaseApp {
 
     constructor(object, options) {
-        super(object, options);
+        // ApplicationV2 expects only an options object; FormApplication expects (object, options)
+        if (__MC_USE_V2) {
+            super(options);
+        } else {
+            super(object, options);
+        }
 
-        // Using window['mapcanvas'] as a way to track dialog state. Not ideal.
-        window['mapcanvas'].dialogActive = true;
-        window['mapcanvas'].apiLoaded = false;
+        MAP_CANVAS_STATE.dialogActive = true;
+        MAP_CANVAS_STATE.dialog = this;
 
-        // Initialization of Google Maps is now ensured in activateListeners to guarantee DOM exists in v13
-        // while still keeping backward compatibility with earlier versions.
-
-        Hooks.on('mapCanvasToggleLabels', this.toggleLabels);
+        // Initialization of Google Maps is ensured after render when DOM exists.
+        Hooks.on('mapCanvasToggleLabels', MapDialog.toggleLabels);
         MapDialog.labelsOn = true;
     }
 
+    // v13+ ApplicationV2 configuration
+    static DEFAULT_OPTIONS = __MC_USE_V2 ? {
+        id: "mapCanvasDialog-{id}",
+        tag: "div",
+        window: {
+            frame: true,
+            positioned: true,
+            title: "Map Canvas",
+            icon: "",
+            minimizable: true,
+            resizable: true,
+            contentTag: "section",
+            contentClasses: []
+        },
+        actions: {},
+        form: {
+            handler: undefined,
+            submitOnChange: false,
+            closeOnSubmit: false
+        },
+        position: {
+            width: "auto",
+            height: "auto"
+        }
+    } : undefined;
+
+    // Handlebars template parts for V2
+    static PARTS = __MC_USE_V2 ? {
+        root: {
+            template: "modules/map-canvas/templates/map-canvas.html",
+            id: "root",
+            root: true,
+            scrollable: [""]
+        }
+    } : undefined;
+
+    // Backwards-compat defaultOptions for FormApplication (v9–v12)
     static get defaultOptions() {
+        if (__MC_USE_V2) return super.defaultOptions ?? {};
         let opts = super.defaultOptions;
         opts.id = "mapCanvasDialog";
         opts.base = "mc_";
@@ -29,6 +86,9 @@ class MapDialog extends FormApplication {
         opts.popOut = true;
         return opts;
     }
+
+    // Title accessor used by ApplicationV2 window title resolution
+    get title() { return "Map Canvas"; }
 
     static getMapStyle() {
         let styleJSON = [];
@@ -74,10 +134,7 @@ class MapDialog extends FormApplication {
 
         MapDialog.mapPortal = new google.maps.Map(MapDialog.mapPortalElem, opts);
 
-        google.maps.event.addListener(MapDialog.mapPortal, 'zoom_changed', (e) => {
-            MapDialog.zoomLevelElem.value = MapDialog.mapPortal.getZoom();
-        });
-        google.maps.event.addListener(MapDialog.mapPortal, 'zoom_changed', (e) => {
+        google.maps.event.addListener(MapDialog.mapPortal, 'zoom_changed', () => {
             MapDialog.zoomLevelElem.value = MapDialog.mapPortal.getZoom();
         });
     
@@ -173,7 +230,14 @@ class MapDialog extends FormApplication {
 
     }
 
-    toggleLabels() {
+    static setLoadingState(isVisible) {
+        const indicator = document.getElementById('loadingIndicator');
+        if (!indicator) return;
+        indicator.classList.toggle('is-visible', Boolean(isVisible));
+        indicator.setAttribute('aria-busy', Boolean(isVisible));
+    }
+
+    static toggleLabels() {
         // Unfortunately this will effectively overwrite label visibility styling defined by any custom style.
         if(MapDialog.labelsOn) {
             MapDialog.mapPortal.set('styles', MAP_STYLES.LABELS_OFF);
@@ -186,45 +250,66 @@ class MapDialog extends FormApplication {
     }
 
     getData(options = {}) {
-        return super.getData().object;
+        // In ApplicationV2 there is no getData pattern; template is static.
+        if (__MC_USE_V2) return {};
+        // FormApplication provides getData which returns an object containing {object, ...}
+        try {
+            return super.getData()?.object ?? {};
+        } catch (e) {
+            return {};
+        }
     }
 
     async activateListeners(html) {
-        super.activateListeners(html);
-        console.log('map-canvas: MapDialog.activateListeners');
+        // Only used by FormApplication (v1 API). For V2, listeners are wired in _onRender.
+        if (!__MC_USE_V2) {
+            super.activateListeners(html);
+            console.log('map-canvas: MapDialog.activateListeners (v1)');
+            await this.ensureMapsApiAndInit();
+            this.#wireEventHandlers();
+        }
+    }
 
-        // Ensure Google Maps API is loaded and the map is initialized now that the DOM exists
-        await this.ensureMapsApiAndInit();
+    // ApplicationV2: called after the application has rendered and DOM is ready
+    async _onRender(context, options) {
+        if (__MC_USE_V2) {
+            await super._onRender?.(context, options);
+            console.log('map-canvas: MapDialog._onRender (v2)');
+            await this.ensureMapsApiAndInit();
+            this.#wireEventHandlers();
+        }
+    }
 
+    // Private helper to wire up button clicks
+    #wireEventHandlers() {
         const addClick = (id, handler) => {
             const el = document.getElementById(id);
-            if (el) el.addEventListener('click', handler);
+            if (el) el.addEventListener('click', handler, { passive: true });
         };
-
         addClick('mapCanvasUpdateScene', () => MapCanvas.updateScene(false));
         addClick('mapCanvasGenerateScene', () => MapCanvas.updateScene(true));
-        addClick('mapCanvasToggleLabels', () => this.toggleLabels());
+        addClick('mapCanvasToggleLabels', () => MapDialog.toggleLabels());
         addClick('mapCanvasMaximize', () => this.maximizeDialog());
-        // The following elements are not present in the current template; guard them.
-        addClick('mapCanvasMoveLeft', () => MapDialog.moveToAdjacentZone('left'));
-        addClick('mapCanvasMoveRight', () => MapDialog.moveToAdjacentZone('right'));
-        addClick('mapCanvasMoveUp', () => MapDialog.moveToAdjacentZone('up'));
-        addClick('mapCanvasMoveDown', () => MapDialog.moveToAdjacentZone('down'));
-        addClick('mapCanvasGenerateExpandedScene', () => MapDialog.captureSurroundingZones());
+        // Guards for potential future controls
+        addClick('mapCanvasMoveLeft', () => MapDialog.moveToAdjacentZone?.('left'));
+        addClick('mapCanvasMoveRight', () => MapDialog.moveToAdjacentZone?.('right'));
+        addClick('mapCanvasMoveUp', () => MapDialog.moveToAdjacentZone?.('up'));
+        addClick('mapCanvasMoveDown', () => MapDialog.moveToAdjacentZone?.('down'));
+        addClick('mapCanvasGenerateExpandedScene', () => MapDialog.captureSurroundingZones?.());
     }
 
     async ensureMapsApiAndInit() {
         try {
             const MAPS_API_KEY = game.settings.get('map-canvas', 'MAPS_API_KEY');
-            if (!window['mapcanvas'].apiLoaded) {
+            if (!MAP_CANVAS_STATE.apiLoaded) {
                 await $.getScript('https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=default');
                 await $.getScript('https://maps.googleapis.com/maps/api/js?libraries=places&v=weekly&key=' + MAPS_API_KEY);
-                window['mapcanvas'].apiLoaded = true; // Assume load succeeded if no exception
+                MAP_CANVAS_STATE.apiLoaded = true; // Assume load succeeded if no exception
                 console.log('map-canvas: Google Maps API loaded');
             }
-            if (!MapDialog.mapInitialized) {
+            if (!MAP_CANVAS_STATE.mapInitialized) {
                 MapDialog.initMap();
-                MapDialog.mapInitialized = true;
+                MAP_CANVAS_STATE.mapInitialized = true;
                 console.log('map-canvas: Map initialized');
             }
         } catch (e) {
@@ -233,22 +318,38 @@ class MapDialog extends FormApplication {
     }
 
     async _updateObject(event, formData) {
+        // Legacy FormApplication submit handler (not used by V2)
+        if (__MC_USE_V2) return;
         // TODO: Rethink / Reimplement how we can properly rehydrate a dialog box where users last left it.
-        window['mapcanvas'].lastSearch = formData.mapCanvasSearchBox
+        MAP_CANVAS_STATE.lastSearch = formData.mapCanvasSearchBox;
         this.object = { searchValue: formData.mapCanvasSearchBox, portalActive: true };
-        this.element.css({
-            height: '100vh',
-
-            top: 0,
-            left: 0
-        });
-
+        // jQuery element is available in v1 Application only
+        try {
+            this.element?.css?.({
+                height: '100vh',
+                top: 0,
+                left: 0
+            });
+        } catch (e) {
+            // noop
+        }
     }
 
     async close() {
-        window['mapcanvas'].dialogActive = false;
-        window['mapcanvas'].dialog = {}
-        await super.close();
+        Hooks.off('mapCanvasToggleLabels', MapDialog.toggleLabels);
+        MAP_CANVAS_STATE.dialogActive = false;
+        MAP_CANVAS_STATE.dialog = null;
+        MAP_CANVAS_STATE.mapInitialized = false;
+        await super.close?.();
+    }
+
+    // Convenience for the Maximize button
+    async maximizeDialog() {
+        try {
+            if (typeof this.maximize === 'function') await this.maximize();
+        } catch (e) {
+            console.warn('map-canvas: maximizeDialog failed', e);
+        }
     }
 }
 
@@ -257,11 +358,13 @@ class MapCanvas extends Application {
     constructor(object, options) {
         super(object, options)
 
-        window['mapcanvas'] = { dialogActive: false, apiLoaded: false };
+        MAP_CANVAS_STATE.dialogActive = false;
+        MAP_CANVAS_STATE.dialog = null;
+        window.mapCanvasState = MAP_CANVAS_STATE;
         // Expose the instance for event handlers defined outside of this class scope
         window.mapCanvasInstance = this;
 
-        $.getScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.2/html2canvas.min.js', () => { /* import html2canvas */ });
+        MapCanvas.loadHtml2Canvas();
 
         Hooks.on("getSceneControlButtons", (controls) => this.addControls(controls));
 
@@ -468,21 +571,31 @@ class MapCanvas extends Application {
 
     openDialog() {
         console.log("map-canvas: openDialog() invoked");
-        if (!window['mapcanvas'].dialogActive) { 
-            window['mapcanvas'].dialogActive = true;
-        } else { 
+        if (MAP_CANVAS_STATE.dialogActive) { 
             console.log("map-canvas: dialog already active; skipping new render");
             return;
         }
+        MAP_CANVAS_STATE.dialogActive = true;
     
         try {
-            window['mapcanvas'].dialog = new MapDialog();
+            MAP_CANVAS_STATE.dialog = new MapDialog();
         } catch (e) {
             console.error("map-canvas: Failed to construct MapDialog", e);
-            window['mapcanvas'].dialogActive = false;
+            MAP_CANVAS_STATE.dialogActive = false;
             return;
         }
-        window['mapcanvas'].dialog.render(true);
+        // Render depending on the underlying Application API version
+        try {
+            if ((globalThis.foundry?.applications?.api?.ApplicationV2)) {
+                // ApplicationV2 signature uses an options object; {force:true} focuses and brings to front
+                MAP_CANVAS_STATE.dialog.render({ force: true });
+            } else {
+                // FormApplication signature expects boolean force
+                MAP_CANVAS_STATE.dialog.render(true);
+            }
+        } catch (e) {
+            console.error('map-canvas: failed to render MapDialog', e);
+        }
     
         // Set the last used scene name and zoom in the dialog box when UI is opened
     }
@@ -509,8 +622,6 @@ class MapCanvas extends Application {
         const currentZoom = MapDialog.mapPortal.getZoom();
         sceneName += " Zoom:" +currentZoom;
         let scene = game.scenes.find(s => s.name.startsWith(sceneName));
-        let test_scene = game.scenes.find(s => s.name = "Citi Field Zoom:17");
-        console.log("Test Scene:", test_scene);
         if (!scene) {
 
             // Create our scene if we don't have it.
@@ -530,22 +641,19 @@ class MapCanvas extends Application {
             console.log("Scene:", scene);
         }
 
-        await MapCanvas.getMapCanvasImage().then(async (image) => {
+        MapDialog.setLoadingState(true);
+        try {
+            const image = await MapCanvas.getMapCanvasImage();
             const USE_STORAGE = game.settings.get("map-canvas", "USE_STORAGE");
             const DEFAULT_SCENE = game.settings.get("map-canvas", "DEFAULT_SCENE");
-
-            // TODO: Make some of these user-definable. Perhaps leveraging Scene.createDialog().
-            const mapElement = document.getElementById('mapPortal');
+            const width = image?.dems?.width || 4000;
+            const height = image?.dems?.height || 3000;
 
             let updates = {
                 _id: scene.id,
-                //img: image.dataUrl,
                 background: { src: image.dataUrl },
-                //width: width,
-                width: 4000,
-                //height: height,
-                height: 3000,
-
+                width,
+                height,
                 padding: 0.01,
                 gridType: 0
             }
@@ -565,7 +673,6 @@ class MapCanvas extends Application {
                 await FilePicker.upload('data', 'map-canvas', tempFile).then((res) => {
                     console.log("UploadRes:", res)
                     updates.background = { src: res.path };
-                    //updates.img = res.path;
                 });
 
             }
@@ -575,34 +682,43 @@ class MapCanvas extends Application {
             await Scene.updateDocuments([updates]).then(() => {
                 ui.notifications.info(" Map Canvas | Updated Scene: " + sceneName)
             });
-            
-        });
+        } finally {
+            MapDialog.setLoadingState(false);
+        }
     }
 
     // TODO: Kinda violates single-responsibility principle, method should be moved to the MapDialog class.
     static async getMapCanvasImage() {
-        const mapPortal = document.getElementById('mapPortal');
-    
+        await MapCanvas.loadHtml2Canvas();
+
         // Remove controls before taking map capture
         MapDialog.mapPortal.setOptions({ disableDefaultUI: true });
         await sleep(100); // Wait for map to update view
 
-        let tempImage = new Image();
-        let imageDems = {};
-    
         // Capture the map image
         function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
         
-        await html2canvas(document.querySelector("#mapPortal"), { useCORS: true }).then(mapCanvas => {
-            tempImage.onload = (_) => {
-                imageDems = { width: _.currentTarget.naturalWidth, height: _.currentTarget.naturalHeight };
-            };
-            tempImage.src = mapCanvas.toDataURL();
-        });
+        const mapCanvas = await html2canvas(document.querySelector("#mapPortal"), { useCORS: true });
+        const dataUrl = mapCanvas.toDataURL();
+        const imageDems = { width: mapCanvas.width, height: mapCanvas.height };
 
         MapDialog.mapPortal.setOptions({ disableDefaultUI: false });
 
-        return { dataUrl: tempImage.src, dems: imageDems };
+        return { dataUrl, dems: imageDems };
+    }
+    
+    static loadHtml2Canvas() {
+        if (!MapCanvas.html2CanvasPromise) {
+            MapCanvas.html2CanvasPromise = new Promise((resolve, reject) => {
+                $.getScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.2/html2canvas.min.js')
+                    .done(() => resolve())
+                    .fail((_, __, exception) => {
+                        const error = exception || new Error('Failed to load html2canvas');
+                        reject(error);
+                    });
+            });
+        }
+        return MapCanvas.html2CanvasPromise;
     }
     
     static async registerSettings() {
@@ -761,5 +877,7 @@ class MapCanvas extends Application {
     }
 
 }
+
+MapCanvas.html2CanvasPromise = null;
 
 const mapCanvas = new MapCanvas();
