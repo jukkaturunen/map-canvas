@@ -1,5 +1,5 @@
 # Changelog
-## v0.0.8
+## v0.0.9
 - Replace deprecated FormApplication usage with ApplicationV2 when available (Foundry v13+),
   falling back to FormApplication for older versions. This removes deprecation warnings on v13
   and preserves backward compatibility.
