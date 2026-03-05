@@ -1,26 +1,28 @@
-<!-- Leave the below line or the CSS doesn't load properly --->
-<link rel="stylesheet" href="modules/map-canvas/styles/map-canvas.css" />
-<form id="mapPortalForm">
-    <div id="mapCanvasContainer">
-        <div id="loadingIndicator" role="status" aria-live="polite">
-            <div class="spinner"></div>
-        </div>
-        <div id="inputHolder">
-            <div class="mapCanvasInputs">
-                <input type="text" id="mapCanvasZoomLevel" value="" placeholder="z" disabled>
-                <input type="text" id="mapCanvasSearchBox" name="placesSearch" placeholder="Search">
-                <input type="text" id="mapCanvasSceneName" name="sceneName" placeholder="Scene Name">
+<div id="mapCanvasRoot">
+    <!-- Leave the below line or the CSS doesn't load properly --->
+    <link rel="stylesheet" href="modules/map-canvas/styles/map-canvas.css" />
+    <form id="mapPortalForm">
+        <div id="mapCanvasContainer">
+            <div id="loadingIndicator" role="status" aria-live="polite">
+                <div class="spinner"></div>
             </div>
-            <div id="mapCanvasActions">
-                <input type="button" id="mapCanvasUpdateScene" value="Update Scene">
-                <input type="button" id="mapCanvasGenerateScene" value="Generate Scene">
-                <input type="button" id="mapCanvasToggleLabels" value="Labels">
-                <!--<input type="button" id="mapCanvasMaximize" value="Maximize Window">-->
+            <div id="inputHolder">
+                <div class="mapCanvasInputs">
+                    <input type="text" id="mapCanvasZoomLevel" value="" placeholder="z" disabled>
+                    <input type="text" id="mapCanvasSearchBox" name="placesSearch" placeholder="Search">
+                    <input type="text" id="mapCanvasSceneName" name="sceneName" placeholder="Scene Name">
+                </div>
+                <div id="mapCanvasActions">
+                    <input type="button" id="mapCanvasUpdateScene" value="Update Scene">
+                    <input type="button" id="mapCanvasGenerateScene" value="Generate Scene">
+                    <input type="button" id="mapCanvasToggleLabels" value="Labels">
+                    <!--<input type="button" id="mapCanvasMaximize" value="Maximize Window">-->
+                </div>
             </div>
-        </div>
 
-        <div class="mapCanvasOptionsMapContainer">
-            <div class="mapPortal" id="mapPortal" style="min-height: 400px;"></div>
+            <div class="mapCanvasOptionsMapContainer">
+                <div class="mapPortal" id="mapPortal" style="min-height: 400px;"></div>
+            </div>
         </div>
-    </div>
-</form>
+    </form>
+</div>
