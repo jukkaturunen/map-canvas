@@ -6,6 +6,14 @@
   selectors.
 */
 
+/* Root and form must fill the dialog content area for resize to work */
+#mapCanvasRoot,
+#mapPortalForm {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
 /* Loading overlay */
 #loadingIndicator {
     display: none;
@@ -45,7 +53,8 @@
 /* Map view container */
 #mapPortal {
     position: relative;
-    padding-bottom: 75%;
+    flex: 1 1 0;
+    min-height: 200px;
     border-radius: 12px;
     overflow: hidden; /* ensures rounded corners clip map tiles */
 }
@@ -169,6 +178,9 @@
 
 /* Map container wrapper adopts rounded aesthetic too */
 .mapCanvasOptionsMapContainer {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
     border-radius: 12px;
     overflow: hidden;
     border: 1px solid rgba(255,255,255,0.08);

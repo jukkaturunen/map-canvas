@@ -57,8 +57,8 @@ class MapDialog extends __MC_BaseApp {
             closeOnSubmit: false
         },
         position: {
-            width: "auto",
-            height: "auto"
+            width: 620,
+            height: 560
         }
     } : undefined;
 
