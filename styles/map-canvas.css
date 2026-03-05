@@ -6,12 +6,14 @@
   selectors.
 */
 
-/* Root and form must fill the dialog content area for resize to work */
+/* Root, form, and Foundry's content section must fill the dialog for resize to work */
+[id^="mapCanvasDialog"] .window-content,
 #mapCanvasRoot,
 #mapPortalForm {
     display: flex;
     flex-direction: column;
     height: 100%;
+    overflow: hidden;
 }
 
 /* Loading overlay */
@@ -50,11 +52,14 @@
     }
 }
 
-/* Map view container */
+/* Map view container — Google Maps needs explicit dimensions since its
+   internal canvas is absolutely positioned and won't stretch a flex item. */
 #mapPortal {
     position: relative;
     flex: 1 1 0;
     min-height: 200px;
+    height: 100%;
+    width: 100%;
     border-radius: 12px;
     overflow: hidden; /* ensures rounded corners clip map tiles */
 }
