@@ -541,6 +541,7 @@ class MapCanvas extends Application {
                 name: "mapcanvas",
                 title: "Map Canvas",
                 icon: "fas fa-globe",
+                layer: "controls",
                 visible: true,
                 tools: canvasTools,
             }
